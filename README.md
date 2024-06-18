@@ -14,7 +14,9 @@ pip install flask pymongo numpy nltk tensorflow
 ```
 Now we need to download the 'punkt' data for NLTK to work.
 follow the following steps to download 'punkt':
+
 1)open command prompt.
+
 2)start python by typing 'python':
 ```bash
 python
