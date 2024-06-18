@@ -21,7 +21,7 @@ follow the following steps to download 'punkt':
 ```bash
 python
 ```
-3)now that you stated python, start by importing nltk.
+3)now that you started python, start by importing nltk.
 ```python
 import nltk
 ```
