@@ -1,0 +1,46 @@
+{"intents": [
+        {"tag": "greeting",
+         "patterns": ["Hi there", "How are you", "Is anyone there?","Hey","Hola", "Hello", "Good day"],
+         "responses": ["Hello", "Good to see you again", "Hi there, how can I help?"],
+         "context": [""]
+        },
+        {"tag": "goodbye",
+         "patterns": ["Bye", "See you later", "Goodbye", "Nice chatting to you, bye", "Till next time"],
+         "responses": ["See you!", "Have a nice day", "Bye! Come back again soon."],
+         "context": [""]
+        },
+        {"tag": "thanks",
+         "patterns": ["Thanks", "Thank you", "That's helpful", "Awesome, thanks", "Thanks for helping me"],
+         "responses": ["My pleasure", "You're Welcome"],
+         "context": [""]
+        },
+        {"tag": "about_fair",
+         "patterns": ["What is book fair?","what is happening here","where am i","whats happening today"],
+         "responses": ["Book Fair is the a place for book worms to enjoy, just like you and me.", "look around, you will find out."],
+         "context": [""]
+        },
+        {"tag": "booking",
+         "patterns": ["i want to book a ticket","can you help me with booking","how can i book a ticket here","book a ticket for me",
+                      "How can i book for the event","help me with my booking please"],
+         "responses": ["booking"],
+         "context": [""]
+        },
+        {"tag": "about_bot",
+         "patterns": ["Who are you?","what is your name?","what are you?","are you a robot?"],
+         "responses": ["Hi there. I am your assistant <chatbot>!! ", "I am <chatbot>, here to help you."],
+         "context": [""]
+        },
+        {"tag": "about_timing",
+         "patterns": ["when will the event start?","when can i visit the event","when is the fair starting?"],
+         "responses": ["The book fair is taking place between <start_date> and <end_date> from <start_time> to <end_time>"],
+         "context": [""]
+        },
+        {"tag": "search",
+         "patterns": ["search for a book","Can you find a book","i'm looking for a book about [topic]",
+                      "do you have any books by [author]","find books on [subject]","What books are popular?",
+			"help me search for a book please","search a book for me","where to buy [Book_title]",
+			"is there a [Book_title] book available here","buy a [author_name] book"],
+         "responses": ["Searching"],
+         "context": [""]
+        }
+    ]}

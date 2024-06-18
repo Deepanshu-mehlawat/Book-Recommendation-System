@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, render_template
 import pymongo
+import chatbot
 from difflib import SequenceMatcher
 import numpy as np
 
@@ -149,6 +150,25 @@ def search_books():
             seen.add(book['id'])
 
     return jsonify({'books': unique_results})
+
+@app.route('/chat', methods=['POST'])
+def chat():
+  if request.method == 'POST':
+    data = request.get_json()
+    if not data or 'message' not in data:
+      return jsonify({'error': 'Missing message in request data'}), 400
+    user_message = data['message']
+
+    # Call methods from chatbot.py to process the message
+    intents = chatbot.predict_class(user_message)
+    response = chatbot.get_response(intents, chatbot.intents)
+    if response == 'Searching':
+        return jsonify({'response': response,'action':2})
+    elif response == 'booking':
+        return jsonify({'response': response,'action':1})
+    return jsonify({'response': response,'action':0})
+  else:
+    return jsonify({'error': 'Invalid request method'}), 405
 
 if __name__ == '__main__':
     app.run(debug=True)
