@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, render_template
 import pymongo
+import random
 import chatbot
 from difflib import SequenceMatcher
 import numpy as np
@@ -169,6 +170,37 @@ def chat():
     return jsonify({'response': response,'action':0})
   else:
     return jsonify({'error': 'Invalid request method'}), 405
+
+
+def get_top_authors():
+    # Aggregation pipeline to find top 5 authors based on clicks
+    pipeline = [
+        {"$group": {"_id": "$Authors", "total_clicks": {"$sum": "$clicks"}}},
+        {"$sort": {"total_clicks": -1}},
+        {"$limit": 5}
+    ]
+    return list(books_collection.aggregate(pipeline))
+
+def get_random_book_id_by_author(author):
+    books = list(books_collection.find({"Authors": author}, {"id": 1}))
+    if books:
+        book = random.choice(books)
+        if book:
+            return str(book["id"])  # Convert ObjectId to string
+    return None
+
+@app.route('/top_authors', methods=['GET'])
+def suggest_books():
+    top_authors = get_top_authors()
+    suggestions = []
+
+    for author in top_authors:
+        book_id = get_random_book_id_by_author(author['_id'])  # Use '_id' here
+        if book_id:
+            suggestions.append(book_id)
+    
+    return jsonify(suggestions)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
