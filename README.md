@@ -28,6 +28,7 @@ import nltk
 4)Now run the following code next:
 ```python
 nltk.download('punkt')
+nltk.download('wordnet')
 ```
 5) thats it, you can type 'exit()' to exit python and proceed with further steps.
 
