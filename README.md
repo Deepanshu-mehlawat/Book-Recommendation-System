@@ -54,6 +54,11 @@ To call the Stalls API, you can use the following command:
 curl -X GET http://127.0.0.1:5000/stalls/52207
 ```
 
+To call the top authors API, you can use the following command:
+```bash
+curl http://localhost:5000/top_authors
+```
+
 
 
 
