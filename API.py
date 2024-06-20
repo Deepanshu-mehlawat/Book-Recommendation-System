@@ -164,13 +164,56 @@ def chat():
     intents = chatbot.predict_class(user_message)
     response = chatbot.get_response(intents, chatbot.intents)
     if response == 'Searching':
-        return jsonify({'response': response,'action':2})
+        # Get the top 5 books based on the search string (user message)
+        top_books = get_top_books(user_message)
+        return jsonify({'response': response, 'action': 2, 'data': top_books})
     elif response == 'booking':
         return jsonify({'response': response,'action':1})
     return jsonify({'response': response,'action':0})
   else:
     return jsonify({'error': 'Invalid request method'}), 405
 
+def fetch_all_books():
+    return list(books_collection.find({}, {"id": 1, "Title": 1, "Authors": 1, "Category": 1}))
+
+def calculate_similarity(search_string, book_data):
+    similarity_scores = []
+    for book in book_data:
+        combined_text = f"{book['Title']} {book['Authors']} {book['Category']}"
+        similarity = SequenceMatcher(None, search_string, combined_text).ratio()
+        similarity_scores.append(similarity)
+    return similarity_scores
+
+def get_top_books(search_string):
+    # Fetch all books from the database
+    books = fetch_all_books()
+    
+    # Calculate similarity scores
+    similarity_scores = calculate_similarity(search_string, books)
+    
+    # Pair each book with its similarity score
+    scored_books = list(zip(books, similarity_scores))
+    
+    # Sort books by similarity score in descending order
+    scored_books.sort(key=lambda x: x[1], reverse=True)
+    
+    # Extract top 5 unique book IDs based on highest similarity count
+    top_books = []
+    seen_books = set()
+    for book, score in scored_books:
+        if book['id'] not in seen_books:
+            book_details = {
+                "id": book['id'],
+                "title": book['Title'],
+                "authors": book['Authors'],
+                "category": book['Category']
+            }
+            top_books.append(book_details)
+            seen_books.add(book['id'])
+        if len(top_books) == 5:
+            break
+    
+    return top_books
 
 def get_top_authors():
     # Aggregation pipeline to find top 5 authors based on clicks
