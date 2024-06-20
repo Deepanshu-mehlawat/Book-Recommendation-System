@@ -10,28 +10,17 @@ git clone https://github.com/Deepanshu-mehlawat/Book-Recommendation-System.git
 To install all the libraries run the following windows command:
 
 ```bash
-pip install flask pymongo numpy nltk tensorflow
+pip install -r requirements.txt
 ```
-Now we need to download the 'punkt' data for NLTK to work.
-follow the following steps to download 'punkt':
+Now we need to download the 'punkt' and 'wordnet' data for NLTK to work.
+follow the following steps to download it:
 
 1)open command prompt.
 
-2)start python by typing 'python':
+2)Just run the followingcommand and wait till its finished running:
 ```bash
-python
+python nltk_setup.py
 ```
-3)now that you started python, start by importing nltk.
-```python
-import nltk
-```
-4)Now run the following code next:
-```python
-nltk.download('punkt')
-nltk.download('wordnet')
-```
-5) thats it, you can type 'exit()' to exit python and proceed with further steps.
-
 
 To run the Flask API, you can run the following command in your command prompt:
 ```bash
