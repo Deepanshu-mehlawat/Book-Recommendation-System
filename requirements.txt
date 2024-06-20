@@ -1,0 +1,6 @@
+Flask
+pymongo
+numpy
+nltk
+tensorflow
+keras
