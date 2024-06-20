@@ -39,7 +39,9 @@
          "patterns": ["search for a book","Can you find a book","i'm looking for a book about [topic]",
                       "do you have any books by [author]","find books on [subject]","What books are popular?",
 			"help me search for a book please","search a book for me","where to buy [Book_title]",
-			"is there a [Book_title] book available here","buy a [author_name] book"],
+			"is there a [Book_title] book available here","buy a [author_name] book",
+			"do you have [Book_name] here","Is [Book_name] available here",
+			"can i find [Book_name] in this fair?","please find [Book_name] for me."],
          "responses": ["Searching"],
          "context": [""]
         }

@@ -176,31 +176,52 @@ def chat():
 def fetch_all_books():
     return list(books_collection.find({}, {"id": 1, "Title": 1, "Authors": 1, "Category": 1}))
 
-def calculate_similarity(search_string, book_data):
+def calculate_similarity1(search_string, book_data):
     similarity_scores = []
     for book in book_data:
-        combined_text = f"{book['Title']} {book['Authors']} {book['Category']}"
-        similarity = SequenceMatcher(None, search_string, combined_text).ratio()
+        combined_text = f"{book['Title'].lower()} {book['Authors'].lower()} {book['Category'].lower()}"
+        similarity = SequenceMatcher(None, search_string.lower(), combined_text).ratio()
         similarity_scores.append(similarity)
     return similarity_scores
 
 def get_top_books(search_string):
     # Fetch all books from the database
     books = fetch_all_books()
-    
-    # Calculate similarity scores
-    similarity_scores = calculate_similarity(search_string, books)
-    
-    # Pair each book with its similarity score
-    scored_books = list(zip(books, similarity_scores))
-    
-    # Sort books by similarity score in descending order
-    scored_books.sort(key=lambda x: x[1], reverse=True)
-    
-    # Extract top 5 unique book IDs based on highest similarity count
+
+    # First look for exact matches in the title
+    exact_matches = []
+    for book in books:
+        if book['Title'].lower() in search_string.lower():
+            exact_matches.append(book)
+
+    # If fewer than 5 exact matches, look for exact matches in the authors
+    if len(exact_matches) < 5:
+        for book in books:
+            if book['Authors'].lower() in search_string.lower() and book not in exact_matches:
+                exact_matches.append(book)
+
+    # If fewer than 5 exact matches, look for exact matches in the category
+    if len(exact_matches) < 5:
+        for book in books:
+            if book['Category'].lower() in search_string.lower() and book not in exact_matches:
+                exact_matches.append(book)
+
+    # If fewer than 5 exact matches, apply similarity search for the remaining slots
+    if len(exact_matches) < 5:
+        similarity_scores = calculate_similarity1(search_string, books)
+        scored_books = list(zip(books, similarity_scores))
+        scored_books.sort(key=lambda x: x[1], reverse=True)
+
+        for book, score in scored_books:
+            if book not in exact_matches:
+                exact_matches.append(book)
+            if len(exact_matches) == 5:
+                break
+
+    # Prepare the top 5 unique book details
     top_books = []
     seen_books = set()
-    for book, score in scored_books:
+    for book in exact_matches:
         if book['id'] not in seen_books:
             book_details = {
                 "id": book['id'],
@@ -212,7 +233,7 @@ def get_top_books(search_string):
             seen_books.add(book['id'])
         if len(top_books) == 5:
             break
-    
+
     return top_books
 
 def get_top_authors():
