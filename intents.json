@@ -21,7 +21,8 @@
         },
         {"tag": "booking",
          "patterns": ["i want to book a ticket","can you help me with booking","how can i book a ticket here","book a ticket for me",
-                      "How can i book for the event","help me with my booking please"],
+                      "How can i book for the event","help me with my booking please","register me for the event",
+		      "how can i register myself for the event"],
          "responses": ["booking"],
          "context": [""]
         },
@@ -41,7 +42,8 @@
 			"help me search for a book please","search a book for me","where to buy [Book_title]",
 			"is there a [Book_title] book available here","buy a [author_name] book",
 			"do you have [Book_name] here","Is [Book_name] available here",
-			"can i find [Book_name] in this fair?","please find [Book_name] for me."],
+			"can i find [Book_name] in this fair?","please find [Book_name] for me.",
+			"search [Title]","Find [Title]","suggest me some books by [title]"],
          "responses": ["Searching"],
          "context": [""]
         }

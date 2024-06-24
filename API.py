@@ -12,10 +12,6 @@ db = client["Books_db"]
 books_collection = db["Books"]
 stalls_collection = db['Stalls']
 
-def calculate_similarity(search_term, text):
-    matcher = SequenceMatcher(None, search_term.lower(), text.lower())
-    return matcher.ratio()
-
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -45,8 +41,13 @@ def top_impressions():
     top_book_ids = [book['id'] for book in top_books]
     return jsonify({'top_books_by_impressions': top_book_ids})
 
+def calculate_similarity(search_term, text):
+    matcher = SequenceMatcher(None, search_term.lower(), text.lower())
+    return matcher.ratio()
+
 @app.route('/search', methods=['GET', 'POST'])
 def search_books():
+    search_term = ''
     if request.method == 'POST':
         data = request.get_json()
         if not data or 'search_term' not in data:
@@ -57,100 +58,62 @@ def search_books():
         if not search_term:
             return jsonify({'error': 'Missing search term in request data'}), 400
 
-    # Fetch all books for percentile calculations
-    all_books = list(books_collection.find({}, {'_id': 0, 'impressions': 1, 'clicks': 1}))
-    impressions_values = [book.get('impressions', 0) for book in all_books]
-    clicks_values = [book.get('clicks', 0) for book in all_books]
-
-    # Calculate 75th percentile for impressions and clicks
-    impressions_75th_percentile = np.percentile(impressions_values, 75)
-    clicks_75th_percentile = np.percentile(clicks_values, 75)
-
-    def get_rec_flag(book):
-        impressions = book.get('impressions', 0)
-        clicks = book.get('clicks', 0)
-        if clicks > clicks_75th_percentile:
-            return 2
-        elif impressions > impressions_75th_percentile:
-            return 1
-        else:
-            return 0
-
-    # Search for exact matches in title
-    title_exact_matches = list(books_collection.find(
+    # Exact match search in title
+    title_matches = list(books_collection.find(
         {'Title': {'$regex': search_term, '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}
-    ))
+        {'_id': 0, 'id': 1, 'Title': 1, 'Authors': 1, 'Category': 1, 'clicks': 1}
+    ).sort('clicks', -1))
 
-    # Sort by impressions
-    title_exact_matches.sort(key=lambda x: x['impressions'], reverse=True)
+    # Exact match search in authors
+    author_matches = list(books_collection.find(
+        {'Authors': {'$regex': search_term, '$options': 'i'}},
+        {'_id': 0, 'id': 1, 'Title': 1, 'Authors': 1, 'Category': 1, 'clicks': 1}
+    ).sort('clicks', -1))
 
-    # If fewer than 5 exact matches, find similar titles
-    title_similarities = []
-    if len(title_exact_matches) < 5:
-        books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}))
-        title_similarities = [(calculate_similarity(search_term, book['Title']), book['id'], book['Title'], book['impressions'], book['clicks']) for book in books]
-        title_similarities.sort(reverse=True, key=lambda x: x[0])  # Sort by highest similarity first
+    # Exact match search in category
+    category_matches = list(books_collection.find(
+        {'Category': {'$regex': search_term, '$options': 'i'}},
+        {'_id': 0, 'id': 1, 'Title': 1, 'Authors': 1, 'Category': 1, 'clicks': 1}
+    ).sort('clicks', -1))
 
-    top_results = title_exact_matches + [
-        {'id': book_id, 'Title': title, 'impressions': impressions, 'clicks': clicks}
-        for _, book_id, title, impressions, clicks in title_similarities[:max(0, 5 - len(title_exact_matches))]
+    # Combine exact matches in the specified order without duplicates
+    exact_matches = title_matches + \
+                    [match for match in author_matches if match not in title_matches] + \
+                    [match for match in category_matches if match not in title_matches and match not in author_matches]
+
+    if len(exact_matches) >= 5:
+        return jsonify({'books': exact_matches[:5]})
+
+    # If fewer than 5 exact matches, find similar books
+    all_books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'Title': 1, 'Authors': 1, 'Category': 1, 'clicks': 1}))
+    similarity_scores = [
+        (
+            max(
+                calculate_similarity(search_term, book['Title']),
+                calculate_similarity(search_term, book['Authors']),
+                calculate_similarity(search_term, book['Category'])
+            ),
+            book
+        )
+        for book in all_books
     ]
 
-    # Search for exact matches in authors
-    author_exact_matches = list(books_collection.find(
-        {'Authors': {'$regex': search_term, '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}
-    ))
+    # Sort by similarity score in descending order
+    similarity_scores.sort(key=lambda x: x[0], reverse=True)
 
-    author_exact_matches.sort(key=lambda x: x['impressions'], reverse=True)
+    # Combine exact matches with the top similar books, ensuring no duplicates
+    combined_results = exact_matches + [score[1] for score in similarity_scores if score[1] not in exact_matches]
 
-    # If fewer than 3 exact matches, find similar authors
-    author_similarities = []
-    if len(author_exact_matches) < 3:
-        books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'Authors': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}))
-        author_similarities = [(calculate_similarity(search_term, book['Authors']), book['id'], book['Title'], book['impressions'], book['clicks']) for book in books]
-        author_similarities.sort(reverse=True, key=lambda x: x[0])  # Sort by highest similarity first
+    return jsonify({'books': combined_results[:5]})
 
-    top_results.extend(
-        author_exact_matches + [
-            {'id': book_id, 'Title': title, 'impressions': impressions, 'clicks': clicks}
-            for _, book_id, title, impressions, clicks in author_similarities[:max(0, 3 - len(author_exact_matches))]
-        ]
-    )
 
-    # Search for exact matches in categories (genres)
-    genre_exact_matches = list(books_collection.find(
-        {'Category': {'$regex': search_term, '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}
-    ))
 
-    genre_exact_matches.sort(key=lambda x: x['impressions'], reverse=True)
+WORDS_TO_REMOVE = {"search", "find", "book","books","by","on", "available","want","fair","bookfair"}
 
-    # If fewer than 2 exact matches, find similar categories
-    genre_similarities = []
-    if len(genre_exact_matches) < 2:
-        books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'Category': 1, 'Title': 1, 'impressions': 1, 'clicks': 1}))
-        genre_similarities = [(calculate_similarity(search_term, book['Category']), book['id'], book['Title'], book['impressions'], book['clicks']) for book in books]
-        genre_similarities.sort(reverse=True, key=lambda x: x[0])  # Sort by highest similarity first
-
-    top_results.extend(
-        genre_exact_matches + [
-            {'id': book_id, 'Title': title, 'impressions': impressions, 'clicks': clicks}
-            for _, book_id, title, impressions, clicks in genre_similarities[:max(0, 3 - len(genre_exact_matches))]
-        ]
-    )
-
-    # Remove duplicates and add "rec" flag
-    seen = set()
-    unique_results = []
-    for book in top_results:
-        if book['id'] not in seen:
-            book['rec'] = get_rec_flag(book)
-            unique_results.append(book)
-            seen.add(book['id'])
-
-    return jsonify({'books': unique_results})
+def clean_message(message):
+    words = message.split()
+    cleaned_words = [word for word in words if word.lower() not in WORDS_TO_REMOVE]
+    return ' '.join(cleaned_words)
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -158,14 +121,15 @@ def chat():
     data = request.get_json()
     if not data or 'message' not in data:
       return jsonify({'error': 'Missing message in request data'}), 400
-    user_message = data['message']
+    user_message = data['message'].lower()
 
     # Call methods from chatbot.py to process the message
     intents = chatbot.predict_class(user_message)
     response = chatbot.get_response(intents, chatbot.intents)
     if response == 'Searching':
         # Get the top 5 books based on the search string (user message)
-        top_books = get_top_books(user_message)
+        cleaned_message = clean_message(user_message)
+        top_books = get_top_books(cleaned_message)
         return jsonify({'response': response, 'action': 2, 'data': top_books})
     elif response == 'booking':
         return jsonify({'response': response,'action':1})
