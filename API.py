@@ -58,7 +58,8 @@ def search_books():
         if not search_term:
             return jsonify({'error': 'Missing search term in request data'}), 400
 
-    return jsonify({'books':get_top_books(search_term)})
+    books = get_top_books(search_term)
+    return jsonify({'books': books})
 
 
 WORDS_TO_REMOVE = {"search", "find", "book","books","by","on", "available","want","fair","bookfair"}
@@ -83,7 +84,7 @@ def chat():
         # Get the top 5 books based on the search string (user message)
         cleaned_message = clean_message(user_message)
         top_books = get_top_books(cleaned_message)
-        return jsonify({'response': response, 'action': 2, 'data': top_books})
+        return jsonify({'response': "Your search results are here", 'action': 2, 'data': top_books})
     elif response == 'booking':
         return jsonify({'response': response,'action':1})
     return jsonify({'response': response,'action':0})
@@ -115,7 +116,10 @@ def get_top_books(search_term):
                     [match for match in category_matches if match not in title_matches and match not in author_matches]
 
     if len(exact_matches) >= 5:
-        return jsonify({'books': exact_matches[:5]})
+        # Ensure the 'id' field is an integer
+        for match in exact_matches:
+            match['id'] = int(match['id'])
+        return exact_matches[:5]
 
     # If fewer than 5 exact matches, find similar books
     all_books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'Title': 1, 'Authors': 1, 'Category': 1, 'clicks': 1}))
@@ -137,7 +141,11 @@ def get_top_books(search_term):
     # Combine exact matches with the top similar books, ensuring no duplicates
     combined_results = exact_matches + [score[1] for score in similarity_scores if score[1] not in exact_matches]
 
-    return  combined_results[:5]
+    # Ensure the 'id' field is an integer
+    for result in combined_results:
+        result['id'] = int(result['id'])
+
+    return combined_results[:5]
 
 
 def get_top_authors():
@@ -168,10 +176,34 @@ def suggest_books():
         print(f"Contents of suggestions list: {suggestions}")
         return jsonify({'error': 'An error occurred. Please try again later.'}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
 
+def get_top_publishers():
+    # Aggregation pipeline to find top 5 publishers based on clicks
+    pipeline = [
+        {"$group": {"_id": "$Publisher", "total_clicks": {"$sum": "$clicks"}}},
+        {"$sort": {"total_clicks": -1}},
+        {"$limit": 5}
+    ]
+    return list(books_collection.aggregate(pipeline))
 
+@app.route('/top_publishers', methods=['GET'])
+def suggest_books_by_publishers():
+    try:
+        top_publishers = get_top_publishers()
+        suggestions = []
+
+        for publisher in top_publishers:
+            publisher_name = publisher['_id']
+            # Query without _id field in projection
+            books = list(books_collection.find({"Publisher": publisher_name}, {"_id": 0, "id": 1, "Title": 1, "Authors": 1, "Publisher": 1, "Category": 1}).limit(5))
+            suggestions.extend(books[:5])  # Add up to 5 books per publisher
+        
+        return jsonify(suggestions[:5])
+
+    except Exception as e:
+        print(f"Error in /top_publishers endpoint: {str(e)}")
+        print(f"Contents of suggestions list: {suggestions}")
+        return jsonify({'error': 'An error occurred. Please try again later.'}), 500
 
 
 if __name__ == '__main__':
