@@ -7,10 +7,10 @@ import numpy as np
 
 app = Flask(__name__)
 
-client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["Books_db"]
-books_collection = db["Books"]
-stalls_collection = db['Stalls']
+client = pymongo.MongoClient("mongodb+srv://adityabansal22cse:Aditya11@bookfair.vggamhp.mongodb.net/")
+db = client["BookFair"]
+books_collection = db["booklistings"]
+stalls_collection = db['stalls']
 
 @app.route('/')
 def home():
