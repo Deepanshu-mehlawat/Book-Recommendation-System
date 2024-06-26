@@ -62,7 +62,7 @@ def search_books():
     return jsonify({'books': books})
 
 
-WORDS_TO_REMOVE = {"search", "find", "book","books","by","on", "available","want","fair","bookfair"}
+WORDS_TO_REMOVE = {"search", "find", "book","books","by","on", "available","want","fair","bookfair","written","category","genre","recommend","suggest"}
 
 def clean_message(message):
     words = message.split()
