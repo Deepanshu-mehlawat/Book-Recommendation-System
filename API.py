@@ -4,17 +4,140 @@ import random
 import chatbot
 from difflib import SequenceMatcher
 import numpy as np
+from bson import ObjectId
 
 app = Flask(__name__)
 
 client = pymongo.MongoClient("mongodb+srv://adityabansal22cse:Aditya11@bookfair.vggamhp.mongodb.net/")
-db = client["BookFair"]
+db = client["nbt"]
 books_collection = db["booklistings"]
 stalls_collection = db['stalls']
+user_collection = db['users']
+user_interactions_collection = db['user_interactions']  # Renamed to avoid variable name collision
+age=0
+gender=0
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return "Hi"
+
+
+def get_age_and_gender(user_id):
+    if user_id == '0':
+        return None, None  # If user_id is '0', return None for age and gender
+    
+    user_data = user_collection.find_one({'_id': ObjectId(user_id)}, {'_id': 0, 'age': 1, 'gender': 1})
+    if user_data:
+        return user_data.get('age'), user_data.get('gender')
+    else:
+        return None, None
+
+def get_age_group(age):
+    if age is None or age < 0 or age > 100:
+        return None
+    return [(x, x + 10) for x in range(0, 100, 10) if x <= age < x + 10][0]
+
+def get_recommendations_by_age_gender_category(age, gender, most_clicked_category, limit=25):
+    age_group = get_age_group(age)
+    
+    if not age_group:
+        return []
+    print(age_group)
+    # Step 1: Fetch interactions for users in the specified age group
+    interactions = list(user_interactions_collection.find({
+        'age': {'$gte': age_group[0], '$lte': age_group[1]}
+    }))
+    
+    # Step 2: Aggregate data to calculate clicks_sum, ge, gne for each book_id
+    books_aggregated = {}
+    for interaction in interactions:
+        book_id = interaction['book_id']
+        clicks = interaction['clicks']
+        interaction_gender = interaction['gender']
+        
+        if book_id not in books_aggregated:
+            books_aggregated[book_id] = {
+                'clicks_sum': 0,
+                'ge': 0,
+                'gne': 0
+            }
+        
+        books_aggregated[book_id]['clicks_sum'] += clicks
+        if interaction_gender == gender:
+            books_aggregated[book_id]['ge'] += 1
+        else:
+            books_aggregated[book_id]['gne'] += 1
+    
+    # Step 3: Calculate gender_ratio and prepare list of dictionaries for sorting
+    books_to_sort = []
+    for book_id, data in books_aggregated.items():
+        clicks_sum = data['clicks_sum']
+        ge = data['ge']
+        gne = data['gne']
+        
+        if ge + gne == 0:
+            gender_ratio = 0  # Handle division by zero scenario
+        else:
+            gender_ratio = (ge + 1) / (ge + gne + 1)
+        
+        books_to_sort.append({
+            'id': book_id,
+            'clicks_sum': clicks_sum,
+            'gender_ratio': gender_ratio
+        })
+    
+    # Step 4: Sort books_to_sort by gender_ratio (descending) and clicks_sum (descending)
+    sorted_books = sorted(books_to_sort, key=lambda x: (x['gender_ratio'], x['clicks_sum']), reverse=True)
+    
+    # Step 5: Lookup book_info from booklistings collection
+    recommended_books = []
+    for book in sorted_books[:limit]:
+        book_info = books_collection.find_one({'id': int(book['id'])})
+        if book_info:
+            recommended_books.append({
+                'id': int(book['id']),
+                'category': book_info['Category']
+            })
+    return recommended_books
+
+@app.route('/top_clicks', methods=['GET'])
+def top_clicks():
+    user_id = request.args.get('user_id', '0')  # Default to '0' if not provided
+    user_age, user_gender = get_age_and_gender(user_id)
+    print(user_age,user_gender)
+    if user_age is None or user_gender is None:
+        # If age or gender is not found, or user_id is '0', fall back to top books by clicks
+        top_books = list(books_collection.find({}, {'_id': 0, 'id': 1}).sort([('clicks', -1)]).limit(25))
+        top_book_ids = [book['id'] for book in top_books]
+        return jsonify({'top_books_by_clicks': top_book_ids})
+    
+    user_interactions = list(user_interactions_collection.find({'user_id': user_id}))
+    
+    if not user_interactions:
+        # No user interactions, fall back to top books by clicks
+        top_books = list(books_collection.find({}, {'_id': 0, 'id': 1}).sort([('clicks', -1)]).limit(25))
+        top_book_ids = [book['id'] for book in top_books]
+        return jsonify({'top_books_by_clicks': top_book_ids})
+    
+    # Find the most clicked category by the user
+    category_clicks = {}
+    for interaction in user_interactions:
+        book = books_collection.find_one({'id': int(interaction['book_id'])})
+        if book:
+            category = book.get('Category', 'Unknown')
+            category_clicks[category] = category_clicks.get(category, 0) + interaction['clicks']
+    
+    most_clicked_category = max(category_clicks, key=category_clicks.get)
+    # Get recommendations by age, gender, and category
+    recommended_books = get_recommendations_by_age_gender_category(user_age, user_gender, most_clicked_category, limit=25)
+    recommended_book_ids = [book['id'] for book in recommended_books]
+    
+    # Fill in the rest with top clicks if needed
+    if len(recommended_book_ids) < 25:
+        additional_books = list(books_collection.find({'id': {'$nin': recommended_book_ids}}, {'_id': 0, 'id': 1}).sort([('clicks', -1)]).limit(25 - len(recommended_book_ids)))
+        recommended_book_ids.extend([book['id'] for book in additional_books])
+    
+    return jsonify({'top_books_by_clicks': recommended_book_ids})
 
 @app.route('/stalls/<int:book_id>', methods=['GET'])
 def stalls_by_book(book_id):
@@ -29,11 +152,11 @@ def stalls_by_book(book_id):
 
     return jsonify({'stalls': response})
 
-@app.route('/top_clicks', methods=['GET'])
-def top_clicks():
-    top_books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'clicks': 1}).sort([('clicks', -1)]).limit(5))
-    top_book_ids = [book['id'] for book in top_books]
-    return jsonify({'top_books_by_clicks': top_book_ids})
+#@app.route('/top_clicks', methods=['GET'])
+#def top_clicks():
+#    top_books = list(books_collection.find({}, {'_id': 0, 'id': 1, 'clicks': 1}).sort([('clicks', -1)]).limit(5))
+#    top_book_ids = [book['id'] for book in top_books]
+#    return jsonify({'top_books_by_clicks': top_book_ids})
 
 @app.route('/top_impressions', methods=['GET'])
 def top_impressions():
