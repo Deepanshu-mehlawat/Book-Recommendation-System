@@ -48,6 +48,11 @@ To call the top authors API, you can use the following command:
 curl http://localhost:5000/top_authors
 ```
 
+To call the recommendations API, you can use the following command:
+```bash
+curl "http://127.0.0.1:5000/top_clicks?user_id=6687beec63c6aa340358ed43"
+```
+
 
 
 
