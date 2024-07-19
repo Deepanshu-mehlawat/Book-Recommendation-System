@@ -62,7 +62,9 @@ def top_clicks():
     gender = request.args.get('gender')
 
     if not all([user_id, favorite_genre, age, gender]):
-        return jsonify({'error': 'Missing required query parameters'}), 400
+        top_books = list(books_collection.find({}, {'_id': 0, 'id': 1}).sort([('clicks', -1)]).limit(15))
+        top_book_ids = [book['id'] for book in top_books]
+        return jsonify({'top_books_by_clicks': top_book_ids})
 
     # Step 1: Get top books by favorite genre
     top_genre_books = list(books_collection.find({'Main_category': favorite_genre}, {'_id': 0, 'id': 1}).sort([('clicks', -1)]).limit(5))
@@ -71,15 +73,23 @@ def top_clicks():
     # Step 2: Get recommendations by age and gender
     age_gender_recommendations = get_recommendations_by_age_gender_category(age, gender, limit=5)
     
-    # Combine and remove duplicates
-    all_recommendations = list(set(top_genre_book_ids + age_gender_recommendations))
+    # Combine and remove duplicates while maintaining order
+    seen = set()
+    all_recommendations = []
+    for book_id in top_genre_book_ids + age_gender_recommendations:
+        if book_id not in seen:
+            seen.add(book_id)
+            all_recommendations.append(book_id)
 
     # Step 3: Fill the remaining slots with the top clicked books if needed
     if len(all_recommendations) < 15:
         additional_books = list(books_collection.find(
             {'id': {'$nin': all_recommendations}}, {'_id': 0, 'id': 1}
         ).sort([('clicks', -1)]).limit(15 - len(all_recommendations)))
-        all_recommendations.extend([book['id'] for book in additional_books])
+        for book in additional_books:
+            if book['id'] not in seen:
+                all_recommendations.append(book['id'])
+                seen.add(book['id'])
 
     return jsonify({'top_books_by_clicks': all_recommendations[:15]})
 
@@ -100,6 +110,12 @@ def stalls_by_book(book_id):
 def top_impressions():
     user_age = request.args.get('age', type=int)
     user_gender = request.args.get('gender')
+
+# If age or gender is not provided, return the top 15 books by impressions
+    if user_age is None or user_gender is None:
+        top_books = list(books_collection.find({}, {'_id': 0, 'id': 1}).sort([('impressions', -1)]).limit(15))
+        top_book_ids = [book['id'] for book in top_books]
+        return jsonify({'top_books_by_impressions': top_book_ids})
 
     # Define the time range (e.g., last 7 days)
     end_date = datetime.utcnow()
