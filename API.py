@@ -331,6 +331,21 @@ def suggest_books_by_publishers():
         print(f"Contents of suggestions list: {suggestions}")
         return jsonify({'error': 'An error occurred. Please try again later.'}), 500
 
+@app.route('/books_by_author', methods=['GET'])
+def books_by_author():
+    name = request.args.get('author_name')
+    
+    if not name:
+        return jsonify({'error': 'Missing required query parameter: author_name'}), 400
+
+    # Query to find books by the given author
+    books = books_collection.find({'Authors': name}, {'_id': 0, 'id': 1})
+    book_ids = [book['id'] for book in books]
+
+    if not book_ids:
+        return jsonify({'error': 'No books found for the given author'}), 404
+
+    return jsonify({'book_ids': book_ids})
 
 if __name__ == '__main__':
     app.run(debug=True)
